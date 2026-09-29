@@ -1,0 +1,80 @@
+# Installs a published release on clean GitHub-hosted machines and runs YardCrew's built-in self-check.
+# The self-check never signs in: it uses a fresh, empty Codex home.
+name: Install test
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test
+        required: true
+        default: v0.1.0-alpha.0
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Download installer and checksum
+        run: gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "*x64.exe*"
+      - name: Verify SHA-256
+        run: |
+          $exe = Get-ChildItem *.exe | Select-Object -First 1
+          $want = (Get-Content "$($exe.Name).sha256").Split(" ")[0].Trim()
+          $got = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          "want $want"; "got  $got"
+          if ($want -ne $got) { throw "checksum mismatch" }
+      - name: Silent per-user install
+        run: |
+          $exe = Get-ChildItem *.exe | Select-Object -First 1
+          Start-Process $exe.FullName -ArgumentList "/S" -Wait
+          $dir = "$env:LOCALAPPDATA\Programs\YardCrew"
+          if (-not (Test-Path "$dir\YardCrew.exe")) { throw "YardCrew.exe not installed" }
+          Get-ChildItem $dir | Select-Object Name, Length
+          Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\YardCrew" | Select-Object DisplayName, DisplayVersion, Publisher
+      - name: Self-check
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = 1
+          & "$env:LOCALAPPDATA\Programs\YardCrew\YardCrew.exe" "$env:LOCALAPPDATA\Programs\YardCrew\resources\app\selfcheck.cjs" | Tee-Object selfcheck.txt
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          if (-not (Select-String -Path selfcheck.txt -Pattern "ALL CHECKS PASSED" -Quiet)) { throw "self-check failed" }
+      - name: App starts and stays up
+        run: |
+          $p = Start-Process "$env:LOCALAPPDATA\Programs\YardCrew\YardCrew.exe" -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { throw "YardCrew exited with code $($p.ExitCode)" }
+          Get-Process YardCrew | Select-Object Id, WorkingSet64, MainWindowTitle
+          Stop-Process -Name YardCrew -Force
+      - name: Silent uninstall keeps user data by default
+        run: |
+          Start-Process "$env:LOCALAPPDATA\Programs\YardCrew\Uninstall YardCrew.exe" -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 5
+          if (Test-Path "$env:LOCALAPPDATA\Programs\YardCrew\YardCrew.exe") { throw "app files remain after uninstall" }
+          "uninstalled"
+
+  macos:
+    runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Download disk image and checksum
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "*arm64.dmg*"
+      - name: Verify SHA-256
+        run: shasum -a 256 -c *.dmg.sha256
+      - name: Mount and copy to Applications
+        run: |
+          hdiutil attach -nobrowse -mountpoint /Volumes/YardCrew *.dmg
+          cp -R /Volumes/YardCrew/YardCrew.app /Applications/
+          hdiutil detach /Volumes/YardCrew
+          codesign --verify --deep --strict --verbose=2 /Applications/YardCrew.app || true
+      - name: Self-check
+        run: |
+          ELECTRON_RUN_AS_NODE=1 /Applications/YardCrew.app/Contents/MacOS/YardCrew /Applications/YardCrew.app/Contents/Resources/app/selfcheck.cjs | tee selfcheck.txt
+          grep -q "ALL CHECKS PASSED" selfcheck.txt
