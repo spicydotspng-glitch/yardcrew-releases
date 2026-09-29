@@ -1,0 +1,14 @@
+name: My crew's first job / feature idea
+description: Tell us what you want your AI workers to do
+labels: [feedback]
+body:
+  - type: textarea
+    id: job
+    attributes:
+      label: The first job for the crew
+      description: What would you hand to a persistent AI worker on your computer?
+    validations: { required: true }
+  - type: textarea
+    id: blocker
+    attributes:
+      label: Anything that stopped you?

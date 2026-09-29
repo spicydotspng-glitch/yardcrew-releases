@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install guide
+    url: https://yardcrew.io/download/
+    about: Step-by-step install for Mac and Windows, and how to verify a download.
