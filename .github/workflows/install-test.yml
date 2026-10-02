@@ -7,7 +7,7 @@ on:
       tag:
         description: Release tag to test
         required: true
-        default: v0.1.0-alpha.0
+        default: v0.1.0-alpha.1
   release:
     types: [published]
 
@@ -21,6 +21,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Download installer and checksum
         run: gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern "*x64.exe*"
       - name: Verify SHA-256
@@ -51,6 +54,46 @@ jobs:
           if ($p.HasExited) { throw "YardCrew exited with code $($p.ExitCode)" }
           Get-Process YardCrew | Select-Object Id, WorkingSet64, MainWindowTitle
           Stop-Process -Name YardCrew -Force
+      - name: Without Docker's Linux engine, the worker computer reports what is missing and offers host mode
+        # The runner has no Linux container engine. The app must start in Isolated Linux, say the worker computer
+        # is not ready, and offer host mode, without crashing. Driven over the Chrome DevTools Protocol.
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP "yardcrew-ci-data"
+          $env:YARDCREW_DATA_DIR = $data
+          $p = Start-Process "$env:LOCALAPPDATA\Programs\YardCrew\YardCrew.exe" -ArgumentList "--remote-debugging-port=9333" -PassThru
+          @'
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          let page;
+          for (let i = 0; i < 60 && !page; i++) {
+            try { page = (await (await fetch("http://127.0.0.1:9333/json")).json()).find((t) => t.type === "page"); } catch {}
+            if (!page) await sleep(1000);
+          }
+          if (!page) throw new Error("no renderer page");
+          const ws = new WebSocket(page.webSocketDebuggerUrl);
+          await new Promise((r) => ws.addEventListener("open", r));
+          let id = 0;
+          const ev = (expression) => new Promise((resolve) => {
+            const me = ++id;
+            ws.addEventListener("message", function on(e) { const m = JSON.parse(e.data); if (m.id === me) { ws.removeEventListener("message", on); resolve(m.result?.result?.value); } });
+            ws.send(JSON.stringify({ id: me, method: "Runtime.evaluate", params: { expression, awaitPromise: true, returnByValue: true } }));
+          });
+          await sleep(6000);
+          const info = await ev(`window.crew.invoke("app.info")`);
+          const status = await ev(`window.crew.invoke("computer.status")`);
+          const text = await ev(`document.body.innerText`);
+          console.log(JSON.stringify({ version: info?.appVersion, mode: info?.executionMode, backend: status?.backend, image: status?.image, network: status?.network }, null, 1));
+          if (info?.executionMode !== "isolated-linux") throw new Error("expected Isolated Linux by default");
+          if (!status || status.image === true) throw new Error("expected the worker computer to be not ready on this runner");
+          if (!/host mode/i.test(text ?? "")) throw new Error("host mode is not offered on the first-run screen");
+          console.log("PASS worker computer not ready; host mode offered; app alive");
+          process.exit(0);
+          '@ | Set-Content -Path ci-cdp.mjs
+          node ci-cdp.mjs
+          $code = $LASTEXITCODE
+          if ($p.HasExited) { throw "YardCrew exited with code $($p.ExitCode)" }
+          Stop-Process -Name YardCrew -Force
+          if ($code -ne 0) { throw "worker computer check failed" }
       - name: Silent uninstall keeps user data by default
         run: |
           Start-Process "$env:LOCALAPPDATA\Programs\YardCrew\Uninstall YardCrew.exe" -ArgumentList "/S" -Wait

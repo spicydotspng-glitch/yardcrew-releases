@@ -11,11 +11,22 @@ body:
       label: Platform
       options: [macOS (Apple Silicon), Windows 10, Windows 11]
     validations: { required: true }
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Worker computer
+      options:
+        - Isolated Linux (Docker Desktop)
+        - Isolated Linux (OrbStack)
+        - Isolated Linux (Colima)
+        - Host mode
+        - Not sure
   - type: input
     id: version
     attributes:
       label: YardCrew version
-      placeholder: 0.1.0-alpha.0
+      description: Settings → About shows it
+      placeholder: 0.1.0-alpha.1
   - type: textarea
     id: what
     attributes:
@@ -25,5 +36,5 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostics (optional)
-      description: Settings → Diagnostics → Copy gives a redacted report of the app's own state.
+      description: Settings → Diagnostics → Preview, then Copy. It contains no task text, files, or sign-ins; read it before you paste.
       render: text
