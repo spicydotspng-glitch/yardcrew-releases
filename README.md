@@ -6,21 +6,21 @@ Official downloads for **YardCrew**, the free desktop app that runs a team of pe
 - Download page and install steps: https://yardcrew.io/download/
 - This repository holds release binaries and release notes only. It does not contain the app's source code.
 
-## Latest: 0.1.0-alpha.14 (alpha)
+## Latest: 0.1.0-alpha.16 (alpha)
 
 | Platform | File | Needs |
 | --- | --- | --- |
-| macOS, Apple Silicon | `YardCrew-0.1.0-alpha.14-arm64.dmg` | M1 or later, macOS 26 or later |
-| Windows, 64-bit | `YardCrew-Setup-0.1.0-alpha.14-x64.exe` | Windows 10 (2004+) or Windows 11 |
+| macOS, Apple Silicon | `YardCrew-0.1.0-alpha.16-arm64.dmg` | M1 or later, macOS 26 or later |
+| Windows, 64-bit | `YardCrew-Setup-0.1.0-alpha.16-x64.exe` | Windows 10 (2004+) or Windows 11 |
 
-The Mac build is signed with Developer ID and notarized by Apple. The Windows build is untested on a real Windows PC.
+Mac build is signed with Developer ID and notarized by Apple: it opens normally on any Mac. Windows build is untested on a real Windows PC.
 
 The Linux worker computer needs a container app: Docker Desktop (free for personal use and small businesses), or OrbStack or Colima on a Mac, and about 3 GB free. Setup is one time, 5 to 25 minutes. Host mode, without a container, is available in Settings → Computer. Older versions: [all releases](../../releases).
 
 Each file has a matching `.sha256`. Check a download before opening it:
 
-- macOS: `shasum -a 256 YardCrew-0.1.0-alpha.14-arm64.dmg`
-- Windows (PowerShell): `Get-FileHash .\YardCrew-Setup-0.1.0-alpha.14-x64.exe`
+- macOS: `shasum -a 256 YardCrew-0.1.0-alpha.16-arm64.dmg`
+- Windows (PowerShell): `Get-FileHash .\YardCrew-Setup-0.1.0-alpha.16-x64.exe`
 
 The result must match the `.sha256` file.
 
